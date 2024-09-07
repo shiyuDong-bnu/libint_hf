@@ -54,18 +54,18 @@ std::vector<libint2::Shell> make_sto3g_basis(const std::vector<Atom>& atoms);
 size_t nbasis(const std::vector<libint2::Shell>& shells);
 std::vector<size_t> map_shell_to_basis_function(
     const std::vector<libint2::Shell>& shells);
-Matrix compute_soad(const std::vector<Atom>& atoms);
-Matrix compute_1body_ints(const std::vector<libint2::Shell>& shells,
+Matrix compute_soad(const std::vector<libint2::Atom>& atoms);
+Matrix compute_1body_ints(const libint2::BasisSet& shells,
                           libint2::Operator t,
-                          const std::vector<Atom>& atoms = std::vector<Atom>());
+                          const std::vector<libint2::Atom>& atoms = std::vector<libint2::Atom>());
 
 // simple-to-read, but inefficient Fock builder; computes ~16 times as many ints
 // as possible
-Matrix compute_2body_fock_simple(const std::vector<libint2::Shell>& shells,
+Matrix compute_2body_fock_simple(const libint2::BasisSet& shells,
                                  const Matrix& D);
 // an efficient Fock builder; *integral-driven* hence computes
 // permutationally-unique ints once
-Matrix compute_2body_fock(const std::vector<libint2::Shell>& shells,
+Matrix compute_2body_fock(const libint2::BasisSet& shells,
                           const Matrix& D);
 
 int main(int argc, char* argv[]) {
@@ -84,8 +84,10 @@ int main(int argc, char* argv[]) {
 
     // read geometry from a file; by default read from h2o.xyz, else take
     // filename (.xyz) from the command line
-    const auto filename = (argc > 1) ? argv[1] : "h2o.xyz";
-    std::vector<Atom> atoms = read_geometry(filename);
+    std::string xyzfile ="Ne.xyz";
+    std::ifstream inputfile(xyzfile);
+    std::vector<libint2::Atom> atoms= libint2::read_dotxyz(inputfile);
+    libint2::BasisSet obs("aug-cc-pVDZ",atoms);
 
     // count the number of electrons
     auto nelectron = 0;
@@ -109,7 +111,10 @@ int main(int argc, char* argv[]) {
     /*** create basis set            ***/
     /*** =========================== ***/
 
-    auto shells = make_sto3g_basis(atoms);
+    //auto shells = make_sto3g_basis(atoms);
+    // use aug-cc-pvdz basis
+    // libint2::BasisSet obs("aug-cc-pVDZ",atoms);
+    libint2::BasisSet shells=obs;
     size_t nao = 0;
     for (auto s = 0; s < shells.size(); ++s) nao += shells[s].size();
 
@@ -441,7 +446,7 @@ std::vector<size_t> map_shell_to_basis_function(
 // computes Superposition-Of-Atomic-Densities guess for the molecular density
 // matrix in minimal basis; occupies subshells by smearing electrons evenly over
 // the orbitals
-Matrix compute_soad(const std::vector<Atom>& atoms) {
+Matrix compute_soad(const std::vector<libint2::Atom>& atoms) {
   // compute number of atomic orbitals
   size_t nao = 0;
   for (const auto& atom : atoms) {
@@ -477,7 +482,7 @@ Matrix compute_soad(const std::vector<Atom>& atoms) {
   return D * 0.5;  // we use densities normalized to # of electrons/2
 }
 
-Matrix compute_1body_ints(const std::vector<libint2::Shell>& shells,
+Matrix compute_1body_ints(const libint2::BasisSet& shells,
                           libint2::Operator obtype,
                           const std::vector<Atom>& atoms) {
   using libint2::Engine;
@@ -625,7 +630,7 @@ Matrix compute_2body_fock_simple(const std::vector<libint2::Shell>& shells,
   return G;
 }
 
-Matrix compute_2body_fock(const std::vector<libint2::Shell>& shells,
+Matrix compute_2body_fock(const libint2::BasisSet& shells,
                           const Matrix& D) {
   using libint2::Engine;
   using libint2::Operator;
