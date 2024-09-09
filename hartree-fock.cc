@@ -51,11 +51,11 @@ struct Atom {
 
 std::vector<Atom> read_geometry(const std::string& filename);
 std::vector<libint2::Shell> make_sto3g_basis(const std::vector<Atom>& atoms);
-size_t nbasis(const std::vector<libint2::Shell>& shells);
+size_t nbasis(const libint2::BasisSet& shells);
 std::vector<size_t> map_shell_to_basis_function(
-    const std::vector<libint2::Shell>& shells);
+    libint2::BasisSet shells);
 Matrix compute_soad(const std::vector<libint2::Atom>& atoms);
-Matrix compute_1body_ints(const libint2::BasisSet& shells,
+Matrix compute_1body_ints(const libint2::BasisSet shells,
                           libint2::Operator t,
                           const std::vector<libint2::Atom>& atoms = std::vector<libint2::Atom>());
 
@@ -129,12 +129,12 @@ int main(int argc, char* argv[]) {
            libint2::configuration_accessor().c_str());
 
     // compute overlap integrals
-    auto S = compute_1body_ints(shells, Operator::overlap);
+    auto S = compute_1body_ints(shells, Operator::overlap,atoms);
     cout << "\n\tOverlap Integrals:\n";
     cout << S << endl;
 
     // compute kinetic-energy integrals
-    auto T = compute_1body_ints(shells, Operator::kinetic);
+    auto T = compute_1body_ints(shells, Operator::kinetic,atoms);
     cout << "\n\tKinetic-Energy Integrals:\n";
     cout << T << endl;
 
@@ -410,7 +410,7 @@ std::vector<libint2::Shell> make_sto3g_basis(const std::vector<Atom>& atoms) {
   return shells;
 }
 
-size_t nbasis(const std::vector<libint2::Shell>& shells) {
+size_t nbasis(const libint2::BasisSet & shells) {
   size_t n = 0;
   for (const auto& shell : shells) n += shell.size();
   return n;
@@ -430,7 +430,7 @@ int max_l(const std::vector<libint2::Shell>& shells) {
 }
 
 std::vector<size_t> map_shell_to_basis_function(
-    const std::vector<libint2::Shell>& shells) {
+    libint2::BasisSet shells) {
   std::vector<size_t> result;
   result.reserve(shells.size());
 
@@ -482,7 +482,7 @@ Matrix compute_soad(const std::vector<libint2::Atom>& atoms) {
   return D * 0.5;  // we use densities normalized to # of electrons/2
 }
 
-Matrix compute_1body_ints(const libint2::BasisSet& shells,
+Matrix compute_1body_ints(const libint2::BasisSet shells,
                           libint2::Operator obtype,
                           const std::vector<Atom>& atoms) {
   using libint2::Engine;
