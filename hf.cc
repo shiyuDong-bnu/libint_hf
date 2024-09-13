@@ -12,6 +12,7 @@
 #include <xtensor/xview.hpp>
 #include <xtensor/xcsv.hpp>
 #include <xtensor/xnpy.hpp>
+#include <stdexcept>
 using namespace std;
 
 using real_t = libint2::scalar_type;
@@ -29,8 +30,23 @@ int main(int argc, char* argv[]){
     ifstream inputfile(xyzfile);
     vector<libint2::Atom> atoms= libint2::read_dotxyz(inputfile);
     //cout <<"Number of atoms is "<<atoms.size()<<endl;
+    auto nelectron = 0;
+    for (auto i = 0; i < atoms.size(); ++i) nelectron += atoms[i].atomic_number;
+    const auto ndocc = nelectron / 2;
+    auto enuc = 0.0;
+    for (auto i = 0; i < atoms.size(); i++)
+      for (auto j = i + 1; j < atoms.size(); j++) {
+        auto xij = atoms[i].x - atoms[j].x;
+        auto yij = atoms[i].y - atoms[j].y;
+        auto zij = atoms[i].z - atoms[j].z;
+        auto r2 = xij * xij + yij * yij + zij * zij;
+        auto r = sqrt(r2);
+        enuc += atoms[i].atomic_number * atoms[j].atomic_number / r;
+      }
+    cout << "\tNuclear repulsion energy = " << enuc << endl;
     // build basis
     libint2::BasisSet obs("aug-cc-pVDZ",atoms);
+    libint2::BasisSet cabs("aug-cc-pVDZ-optri",atoms);
     // Get information of basis set
     int max_l=obs.max_l();
     int max_nprim= obs.max_nprim();
@@ -233,7 +249,7 @@ int main(int argc, char* argv[]){
                             for(auto f3=0; f3!=n3;++f3){
                                 for(auto f4=0;f4!=n4;++f4){
                                 
-                                cout<<"  "<<bind1+f1<<" " <<bind2+f2<<" " <<bind3+f3 <<" "<<bind4+f4<<" "<<setprecision(15)<< ints_shellset[f1*(n2*n3*n4)+f2*(n3*n4)+f3*(n4)+f4]<<endl;
+                                //cout<<"  "<<bind1+f1<<" " <<bind2+f2<<" " <<bind3+f3 <<" "<<bind4+f4<<" "<<setprecision(15)<< ints_shellset[f1*(n2*n3*n4)+f2*(n3*n4)+f3*(n4)+f4]<<endl;
                                         // print out results
                                 eri_tensor(bind1+f1,bind2+f2,bind3+f3,bind4+f4)=ints_shellset[f1*(n2*n3*n4)+f2*(n3*n4)+f3*(n4)+f4];
                                 }
@@ -249,7 +265,66 @@ int main(int argc, char* argv[]){
     }
     // save eri to npy file
     xt::dump_npy("eri.npy",eri_tensor);
-    
+    // write a hartree fock program using integral generated above.
+    // FC=SCE -> FC= S^{1/2}S^{1/2}CE -> S^{-1/2}FS^{-1/2}S^{1/2}C=s^{1/2}CE
+    // C^{\prime}=S^{1/2}C F^{\prime}=S^{-1/2}FS^{-1/2} F^p C^p= C^p E
+    // now we need to build fock matrix
+    real_t delta=0;
+    // build fock matrix
+    // fock matrix 
+    Matrix F=Matrix::Zero(n_basis, n_basis);
+    // Density Matrix
+    Matrix D=Matrix::Zero(n_basis, n_basis);
+    // Coulomb Matrix
+    Matrix J=Matrix::Zero(n_basis, n_basis);
+    // Exchange Matrix
+    Matrix K=Matrix::Zero(n_basis, n_basis);
+    std::cout<<"n basis"<<n_basis<<std::endl;
+    // H0 Matrix
+    Matrix H=T+V;
+    Eigen::GeneralizedSelfAdjointEigenSolver<Matrix> gen_eig_solver(H, S);
+    auto eps = gen_eig_solver.eigenvalues();
+    auto C = gen_eig_solver.eigenvectors();
+    // cout << "\n\tInitial C Matrix:\n";
+    // cout << C << endl;
+    do{
+        auto C_occ = C.leftCols(ndocc);
+        D = C_occ * C_occ.transpose();
+        // einsum J 
+        J.setZero();
+        for (int i=0;i<n_basis;i++){
+            for (int j=0;j<n_basis;j++){
+                for(int k=0;k<n_basis;k++){
+                    for (int l=0;l<n_basis;l++){
+                        J(i,j)+=eri_tensor(i,j,k,l)*D(k,l);    
+                    }
+                }
+            }
+        }
+        // einsum K
+        K.setZero();
+        for (int i=0;i<n_basis;i++){
+            for (int j=0;j<n_basis;j++){
+                for(int k=0;k<n_basis;k++){
+                    for (int l=0;l<n_basis;l++){
+                        K(i,j)+=eri_tensor(i,k,j,l)*D(k,l);
+                    }
+                }
+            }
+        }
+        H=T+V+2*J-K;
+        Eigen::GeneralizedSelfAdjointEigenSolver<Matrix> gen_eig_solver(H, S);
+        auto eps = gen_eig_solver.eigenvalues();
+        auto C = gen_eig_solver.eigenvectors();
+        double ehf = 0.0;
+        for (auto i = 0; i < n_basis; i++)
+            for (auto j = 0; j < n_basis; j++)
+                ehf += D(i, j) * (T(i, j) + V(i,j)+F(i, j));
+        std::cout<<std::setprecision(13)<<ehf<<std::endl;
+
+
+    }while(1);
+
 
     return 0;
 }
