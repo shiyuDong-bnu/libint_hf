@@ -45,8 +45,8 @@ int main(int argc, char* argv[]){
       }
     cout << "\tNuclear repulsion energy = " << enuc << endl;
     // build basis
-    libint2::BasisSet obs("aug-cc-pVDZ",atoms);
-    libint2::BasisSet cabs("aug-cc-pvdz-optri",atoms);
+    libint2::BasisSet obs("aug-cc-pVDZ",atoms,1);
+    libint2::BasisSet cabs("aug-cc-pVDZ-optri",atoms,1);
     // Get information of basis set
     int max_l=obs.max_l();
     int max_nprim= obs.max_nprim();
