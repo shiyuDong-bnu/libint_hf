@@ -46,7 +46,7 @@ int main(int argc, char* argv[]){
     cout << "\tNuclear repulsion energy = " << enuc << endl;
     // build basis
     libint2::BasisSet obs("aug-cc-pVDZ",atoms);
-    libint2::BasisSet cabs("aug-cc-pvdz-cabs",atoms);
+    libint2::BasisSet cabs("aug-cc-pvdz-optri",atoms);
     // Get information of basis set
     int max_l=obs.max_l();
     int max_nprim= obs.max_nprim();
@@ -212,7 +212,8 @@ int main(int argc, char* argv[]){
     // initialize engine
     libint2::Engine eri_engine(libint2::Operator::coulomb	,  // will compute overlap ints
         obs.max_nprim(),    // max # of primitives in shells this engine will accept
-        obs.max_l()         // max angular momentum of shells this engine will accept
+        obs.max_l() , // max angular momentum of shells this engine will accept
+        0      
         );
     const auto& buf_eri = eri_engine.results(); 
     // using xtensor to store eri results
