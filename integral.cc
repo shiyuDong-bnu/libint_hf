@@ -12,6 +12,7 @@
 #include <xtensor/xview.hpp>
 #include <xtensor/xcsv.hpp>
 #include <xtensor/xnpy.hpp>
+#include <xtensor-blas/xlinalg.hpp>
 #include <stdexcept>
 using namespace std;
 
@@ -19,10 +20,55 @@ using real_t = libint2::scalar_type;
 typedef Eigen::Matrix<real_t,Eigen::Dynamic,Eigen::Dynamic,Eigen::RowMajor>
         Matrix;
  using XTMatrix = xt::xarray<real_t, xt::layout_type::row_major>;
-// write a general function to calculte one-body integral
-// Matrix compute_1body_ints(const libint2::BasisSet basis,
-//                           libint2::Operator t,
-//                           const std::vector<libint2::Atom>& atoms = std::vector<libint2::Atom>());
+Matrix S_integral(
+    libint2::BasisSet obs1,
+    libint2::BasisSet obs2
+);
+Matrix S_integral1(
+    libint2::BasisSet obs1,
+    libint2::BasisSet obs2
+);
+Matrix T_integral1(
+    libint2::BasisSet obs1,
+    libint2::BasisSet obs2
+);
+Matrix V_integral1(
+    libint2::BasisSet obs1,
+    libint2::BasisSet obs2,
+const vector<libint2::Atom>
+);
+Matrix one_body(
+    libint2::BasisSet obs1,
+    libint2::BasisSet obs2,
+    libint2::Engine engine
+);  
+XTMatrix eri_integral(
+    libint2::BasisSet obs1,
+    libint2::BasisSet obs2,
+    libint2::BasisSet obs3,
+    libint2::BasisSet obs4
+);
+XTMatrix yukawa_integral(
+    libint2::BasisSet obs1,
+    libint2::BasisSet obs2,
+    libint2::BasisSet obs3,
+    libint2::BasisSet obs4,
+    double gamma
+);
+XTMatrix stg_integral(
+    libint2::BasisSet obs1,
+    libint2::BasisSet obs2,
+    libint2::BasisSet obs3,
+    libint2::BasisSet obs4,
+    double gamma
+);
+XTMatrix two_body(
+    libint2::BasisSet obs1,
+    libint2::BasisSet obs2,
+    libint2::BasisSet obs3,
+    libint2::BasisSet obs4,
+    libint2::Engine engine
+);
 int main(int argc, char* argv[]){
     libint2::initialize();
     // reading input molecule
@@ -45,8 +91,8 @@ int main(int argc, char* argv[]){
       }
     cout << "\tNuclear repulsion energy = " << enuc << endl;
     // build basis
-    libint2::BasisSet obs("aug-cc-pVDZ",atoms,1);
-    libint2::BasisSet cabs("aug-cc-pVDZ-optri",atoms,1);
+    libint2::BasisSet obs("aug-cc-pVDZ",atoms);
+    libint2::BasisSet cabs("aug-cc-pVDZ-optri",atoms);
     // Get information of basis set
     int max_l=obs.max_l();
     int max_nprim= obs.max_nprim();
@@ -117,6 +163,10 @@ int main(int argc, char* argv[]){
         }
     }
     //save S matrix
+    auto S_f=S_integral(obs,obs);
+    auto S_f1=S_integral1(obs,obs);
+    std::cout<<"test functionS "<<(S_f-S).norm()<<std::endl;
+    std::cout<<"test functionS1 "<<(S_f1-S).norm()<<std::endl;
     const static Eigen::IOFormat CSVFormat(Eigen::FullPrecision, Eigen::DontAlignCols, ", ", "\n");
     ofstream file("S.csv");
 	if (file.is_open())
@@ -152,6 +202,9 @@ int main(int argc, char* argv[]){
             T.block(bind1,bind2,n1,n2)=buf_mat; // here need change
         }
     }
+    // test T fucntion
+    Matrix T_f=T_integral1(obs,obs);
+    std::cout<<"test functionT1 "<<(T_f-T).norm()<<std::endl;
     // save T data
     // const static Eigen::IOFormat CSVFormat(Eigen::FullPrecision, Eigen::DontAlignCols, ", ", "\n");
     ofstream file2("T.csv");
@@ -200,6 +253,9 @@ int main(int argc, char* argv[]){
             V.block(bind1,bind2,n1,n2)=buf_mat;
         }
     }
+    // test v function
+    Matrix V_f=V_integral1(obs,obs,atoms);
+    std::cout<<"test functionV1 "<<(V_f-V).norm()<<std::endl;
     // save V data
     // const static Eigen::IOFormat CSVFormat(Eigen::FullPrecision, Eigen::DontAlignCols, ", ", "\n");
     ofstream file3("V.csv");
@@ -264,6 +320,9 @@ int main(int argc, char* argv[]){
             }
         }
     }
+    // test eri
+    XTMatrix eri_f=eri_integral(obs,obs,obs,obs);
+    xt::dump_npy("erif.npy",eri_f);
     // save eri to npy file
     xt::dump_npy("eri.npy",eri_tensor);
     // Now save gr_ijxy in atomic basis
@@ -323,6 +382,8 @@ int main(int argc, char* argv[]){
         }
     }
     xt::dump_npy("yukawa.npy",yukawa_tensor);   
+    // test yukawa 
+    xt::dump_npy("yukawa_f.npy",yukawa_integral(obs,obs,obs,obs,gamma));
     
 
     // eri integral
@@ -357,7 +418,7 @@ int main(int argc, char* argv[]){
                     auto third=obs[k];
                     auto fourth=cabs[l];
                     hyb_eri_engine.compute(first ,second,third,fourth); // here need change 
-                    auto ints_shellset=buf_eri[0]; // location of the computed integrals
+                    auto ints_shellset=buf_hyb_eri[0]; // location of the computed integrals
                     if (ints_shellset==nullptr)
                         {   std::cout<<"null"<<std::endl;
                             continue;} // nullprt retured if the entaire shell-set was screened out
@@ -396,13 +457,14 @@ int main(int argc, char* argv[]){
     }
     // save eri to npy file
     xt::dump_npy("hyb_eri_tensor.npy",hyb_eri_tensor);
+    xt::dump_npy("hyb_eri_tensorf.npy",eri_integral(obs,obs,obs,cabs));
     // stg
-    libint2::Engine std_engine(libint2::Operator::stg	,  // will compute overlap ints
+    libint2::Engine hyb_std_engine(libint2::Operator::stg	,  // will compute overlap ints
         hybrid_max_nprim,    // max # of primitives in shells this engine will accept
         hybrid_max_l        // max angular momentum of shells this engine will accept
         );
-    std_engine.set_params(gamma);
-    const auto& buf_stg = std_engine.results();
+    hyb_std_engine.set_params(gamma);
+    const auto& buf_hyb_stg = hyb_std_engine.results();
     // using xtensor to store eri results
     XTMatrix hyb_stg_tensor =xt::zeros<real_t>({n_basis, n_basis,n_basis,n_cabs});
     // now fill the tensor
@@ -410,13 +472,13 @@ int main(int argc, char* argv[]){
     for (int i=0;i<n_shell;i++){
         for (int j=0;j<n_shell;j++){
             for(int k=0;k<n_shell;k++){
-                for (int l=0;l<n_shell;l++){                
+                for (int l=0;l<n_cabs_shell;l++){                
                     first=obs[i]; 
                     second=obs[j]; 
                     auto third=obs[k];
                     auto fourth=cabs[l];
-                    std_engine.compute(first ,second,third,fourth); // here need change 
-                    auto ints_shellset=buf_stg[0]; // location of the computed integrals
+                    hyb_std_engine.compute(first ,second,third,fourth); // here need change 
+                    auto ints_shellset=buf_hyb_stg[0]; // location of the computed integrals
                     if (ints_shellset==nullptr)
                         {   std::cout<<"null"<<std::endl;
                             continue;} // nullprt retured if the entaire shell-set was screened out
@@ -455,10 +517,16 @@ int main(int argc, char* argv[]){
     }
     // save eri to npy file
     xt::dump_npy("hyb_stg_tensor.npy",hyb_stg_tensor);
+    xt::dump_npy("hyb_stg_tensorf.npy",stg_integral(obs,obs,obs,cabs,gamma));
 
 
 
-    // using xtensor to store eri results
+    libint2::Engine stg_engine(libint2::Operator::stg	,  // will compute overlap ints
+        max_nprim,    // max # of primitives in shells this engine will accept
+        max_l        // max angular momentum of shells this engine will accept
+        );
+    stg_engine.set_params(gamma);
+    const auto& buf_stg = stg_engine.results();
     XTMatrix stg_tensor =xt::zeros<real_t>({n_basis, n_basis,n_basis,n_basis});
     // now fill the tensor
     std::cout<<"calcualting stg_tensor"<<std::endl;
@@ -470,7 +538,7 @@ int main(int argc, char* argv[]){
                     second=obs[j]; 
                     auto third=obs[k];
                     auto fourth=obs[l];
-                    std_engine.compute(first ,second,third,fourth); // here need change 
+                    stg_engine.compute(first ,second,third,fourth); // here need change 
                     auto ints_shellset=buf_stg[0]; // location of the computed integrals
                     if (ints_shellset==nullptr)
                         {   std::cout<<"null"<<std::endl;
@@ -510,5 +578,331 @@ int main(int argc, char* argv[]){
     }
     // save eri to npy file
     xt::dump_npy("stg_tensor.npy",stg_tensor);
+    xt::dump_npy("stg_tensorf.npy",stg_integral(obs,obs,obs,obs,gamma));
     return 0;
 }
+Matrix S_integral(
+    libint2::BasisSet obs1,
+    libint2::BasisSet obs2
+){
+    const int n_basis1=obs1.nbf();
+    const int n_basis2=obs2.nbf();
+    const int max_nprim1=obs1.max_nprim();
+    const int max_nprim2=obs2.max_nprim();
+    const int max_l1=obs1.max_l();
+    const int max_l2=obs2.max_l();
+    const int n_shell1=obs1.size();
+    const int n_shell2=obs2.size();
+    auto shell2bf1=obs1.shell2bf();
+    auto shell2bf2=obs2.shell2bf();
+    // build S engine
+    int max_nprim=(max_nprim1>max_nprim2)? max_nprim1:max_nprim2;
+    int max_l=(max_l1>max_l2)? max_l1:max_l2;
+    libint2::Engine s_engine(libint2::Operator::overlap,
+                     max_nprim,
+                     max_l
+                     ); 
+    const auto& buf=s_engine.results();
+    // now fill the tensor
+    std::cout<<"calcualting S_tensor"<<std::endl;
+    Matrix S = Matrix::Zero(n_basis1, n_basis2);
+    for (int i=0;i<n_shell1;i++){
+        for (int j=0;j<n_shell2;j++){
+            libint2::Shell first=obs1[i]; 
+            libint2::Shell  second=obs2[j]; 
+            s_engine.compute(first ,second);
+            // transfer into eigen buf
+            int n1=first.size();
+            int n2=second.size();
+           // std::cout<<"N1 " <<n1<<" N2"<<n2<<std::endl;
+            Eigen::Map<const Matrix> buf_mat(buf[0],n1,n2);
+            // check block index using shell2bf
+            int bind1=shell2bf1[i];
+            int bind2=shell2bf2[j];
+           // std::cout<<"Buffer is \n"<<buf_mat<<std::endl;
+            S.block(bind1,bind2,n1,n2)=buf_mat;
+        }
+    }
+    return S;
+}
+Matrix S_integral1(
+    libint2::BasisSet obs1,
+    libint2::BasisSet obs2
+){
+    const int n_basis1=obs1.nbf();
+    const int n_basis2=obs2.nbf();
+    const int max_nprim1=obs1.max_nprim();
+    const int max_nprim2=obs2.max_nprim();
+    const int max_l1=obs1.max_l();
+    const int max_l2=obs2.max_l();
+    const int n_shell1=obs1.size();
+    const int n_shell2=obs2.size();
+    auto shell2bf1=obs1.shell2bf();
+    auto shell2bf2=obs2.shell2bf();
+    int max_nprim=(max_nprim1>max_nprim2)? max_nprim1:max_nprim2;
+    int max_l=(max_l1>max_l2)? max_l1:max_l2;
+    libint2::Engine engine(libint2::Operator ::overlap,
+                     max_nprim,
+                     max_l
+                     ); 
+
+  return one_body(obs1,obs2, engine);
+}
+Matrix T_integral1(
+    libint2::BasisSet obs1,
+    libint2::BasisSet obs2
+){
+    const int n_basis1=obs1.nbf();
+    const int n_basis2=obs2.nbf();
+    const int max_nprim1=obs1.max_nprim();
+    const int max_nprim2=obs2.max_nprim();
+    const int max_l1=obs1.max_l();
+    const int max_l2=obs2.max_l();
+    const int n_shell1=obs1.size();
+    const int n_shell2=obs2.size();
+    auto shell2bf1=obs1.shell2bf();
+    auto shell2bf2=obs2.shell2bf();
+    int max_nprim=(max_nprim1>max_nprim2)? max_nprim1:max_nprim2;
+    int max_l=(max_l1>max_l2)? max_l1:max_l2;
+    libint2::Engine engine(libint2::Operator ::kinetic,
+                     max_nprim,
+                     max_l
+                     ); 
+
+  return one_body(obs1,obs2, engine);
+}
+Matrix V_integral1(
+    libint2::BasisSet obs1,
+    libint2::BasisSet obs2,
+     const vector<libint2::Atom>atoms
+){
+    const int n_basis1=obs1.nbf();
+    const int n_basis2=obs2.nbf();
+    const int max_nprim1=obs1.max_nprim();
+    const int max_nprim2=obs2.max_nprim();
+    const int max_l1=obs1.max_l();
+    const int max_l2=obs2.max_l();
+    const int n_shell1=obs1.size();
+    const int n_shell2=obs2.size();
+    auto shell2bf1=obs1.shell2bf();
+    auto shell2bf2=obs2.shell2bf();
+    int max_nprim=(max_nprim1>max_nprim2)? max_nprim1:max_nprim2;
+    int max_l=(max_l1>max_l2)? max_l1:max_l2;
+    libint2::Engine engine(libint2::Operator ::nuclear,
+                     max_nprim,
+                     max_l
+                     ); 
+    // calculate nuclear potential 
+    std::vector<std::pair<real_t,std::array<real_t,3>>>   q;
+    std::pair<real_t,std::array<real_t,3>> nuclear_potential;
+    for (const auto atom : atoms){
+        std::array<real_t,3> coord;
+         coord={atom.x,atom.y,atom.z};
+       nuclear_potential=std::make_pair(
+        static_cast<real_t> (atom.atomic_number),
+        coord
+       );
+       q.push_back(nuclear_potential);
+    };
+    engine.set_params(q);
+  return one_body(obs1,obs2, engine);
+}
+Matrix one_body(
+    libint2::BasisSet obs1,
+    libint2::BasisSet obs2,
+    libint2::Engine engine
+){
+    const int n_basis1=obs1.nbf();
+    const int n_basis2=obs2.nbf();
+    const int max_nprim1=obs1.max_nprim();
+    const int max_nprim2=obs2.max_nprim();
+    const int max_l1=obs1.max_l();
+    const int max_l2=obs2.max_l();
+    const int n_shell1=obs1.size();
+    const int n_shell2=obs2.size();
+    auto shell2bf1=obs1.shell2bf();
+    auto shell2bf2=obs2.shell2bf();
+
+
+    const auto& buf=engine.results();
+    // now fill the tensor
+    Matrix Result = Matrix::Zero(n_basis1, n_basis2);
+    for (int i=0;i<n_shell1;i++){
+        for (int j=0;j<n_shell2;j++){
+            libint2::Shell first=obs1[i]; 
+            libint2::Shell  second=obs2[j]; 
+            engine.compute(first ,second);
+            // transfer into eigen buf
+            int n1=first.size();
+            int n2=second.size();
+           // std::cout<<"N1 " <<n1<<" N2"<<n2<<std::endl;
+            Eigen::Map<const Matrix> buf_mat(buf[0],n1,n2);
+            // check block index using shell2bf
+            int bind1=shell2bf1[i];
+            int bind2=shell2bf2[j];
+           // std::cout<<"Buffer is \n"<<buf_mat<<std::endl;
+            Result.block(bind1,bind2,n1,n2)=buf_mat;
+        }
+    }
+    return Result;
+};
+XTMatrix eri_integral(
+    libint2::BasisSet obs1,
+    libint2::BasisSet obs2,
+    libint2::BasisSet obs3,
+    libint2::BasisSet obs4
+){
+   
+
+    const int max_nprim1=obs1.max_nprim();
+    const int max_nprim2=obs2.max_nprim();
+    const int max_nprim3=obs3.max_nprim();
+    const int max_nprim4=obs4.max_nprim();
+
+    const int max_l1=obs1.max_l();
+    const int max_l2=obs2.max_l();
+    const int max_l3=obs3.max_l();
+    const int max_l4=obs4.max_l();
+
+    std::vector<int> max_ls={max_l1,max_l2,max_l3,max_l4};
+    std::vector<int> max_nprims={max_nprim1,max_nprim2,max_nprim3,max_nprim4};
+    int max_l=*std::max_element(max_ls.begin(),max_ls.end());
+    int max_nprim=*std::max_element(max_nprims.begin(),max_nprims.end());
+
+    libint2::Engine eri_engine( libint2::Operator::coulomb	,  // will compute overlap ints
+    max_nprim,    // max # of primitives in shells this engine will accept
+    max_l , // max angular momentum of shells this engine will accept
+    0  
+    );
+    return two_body(obs1,obs2,obs3,obs4,eri_engine);
+};
+XTMatrix yukawa_integral(
+    libint2::BasisSet obs1,
+    libint2::BasisSet obs2,
+    libint2::BasisSet obs3,
+    libint2::BasisSet obs4,
+    double gamma
+){
+   
+
+    const int max_nprim1=obs1.max_nprim();
+    const int max_nprim2=obs2.max_nprim();
+    const int max_nprim3=obs3.max_nprim();
+    const int max_nprim4=obs4.max_nprim();
+    const int max_l1=obs1.max_l();
+    const int max_l2=obs2.max_l();
+    const int max_l3=obs3.max_l();
+    const int max_l4=obs4.max_l();
+    std::vector<int> max_ls={max_l1,max_l2,max_l3,max_l4};
+    std::vector<int> max_nprims={max_nprim1,max_nprim2,max_nprim3,max_nprim4};
+    int max_l=*std::max_element(max_ls.begin(),max_ls.end());
+    int max_nprim=*std::max_element(max_nprims.begin(),max_nprims.end());
+    libint2::Engine yukawa_engine(libint2::Operator::yukawa	,  // will compute overlap ints
+        max_nprim,    // max # of primitives in shells this engine will accept
+        max_l         // max angular momentum of shells this engine will accept
+        );
+    yukawa_engine.set_params(gamma);
+    return two_body(obs1,obs2,obs3,obs4,yukawa_engine);
+};
+XTMatrix stg_integral(
+    libint2::BasisSet obs1,
+    libint2::BasisSet obs2,
+    libint2::BasisSet obs3,
+    libint2::BasisSet obs4,
+    double gamma
+){
+   
+
+    const int max_nprim1=obs1.max_nprim();
+    const int max_nprim2=obs2.max_nprim();
+    const int max_nprim3=obs3.max_nprim();
+    const int max_nprim4=obs4.max_nprim();
+    const int max_l1=obs1.max_l();
+    const int max_l2=obs2.max_l();
+    const int max_l3=obs3.max_l();
+    const int max_l4=obs4.max_l();
+    std::vector<int> max_ls={max_l1,max_l2,max_l3,max_l4};
+    std::vector<int> max_nprims={max_nprim1,max_nprim2,max_nprim3,max_nprim4};
+    int max_l=*std::max_element(max_ls.begin(),max_ls.end());
+    int max_nprim=*std::max_element(max_nprims.begin(),max_nprims.end());
+    libint2::Engine stg_engine(libint2::Operator::stg	,  // will compute overlap ints
+        max_nprim,    // max # of primitives in shells this engine will accept
+        max_l         // max angular momentum of shells this engine will accept
+        );
+    stg_engine.set_params(gamma);
+    return two_body(obs1,obs2,obs3,obs4,stg_engine);
+};
+XTMatrix two_body(
+    libint2::BasisSet obs1,
+    libint2::BasisSet obs2,
+    libint2::BasisSet obs3,
+    libint2::BasisSet obs4,
+    libint2::Engine engine
+){
+    
+    const int n_basis1=obs1.nbf();
+    const int n_basis2=obs2.nbf();
+    const int n_basis3=obs3.nbf();
+    const int n_basis4=obs4.nbf();
+
+    const int n_shell1=obs1.size();
+    const int n_shell2=obs2.size();
+    const int n_shell3=obs3.size();
+    const int n_shell4=obs4.size();
+
+    auto shell2bf1=obs1.shell2bf();
+    auto shell2bf2=obs2.shell2bf();
+    auto shell2bf3=obs3.shell2bf();
+    auto shell2bf4=obs4.shell2bf();
+
+    XTMatrix result =xt::zeros<real_t>({n_basis1, n_basis2,n_basis3,n_basis4});
+
+    const auto& buf=engine.results();
+    // now fill the tensor
+    for (int i=0;i<n_shell1;i++){
+        for (int j=0;j<n_shell2;j++){
+            for(int k=0;k<n_shell3;k++){
+                for (int l=0;l<n_shell4;l++){                
+                    libint2::Shell first=obs1[i]; 
+                    libint2::Shell second=obs2[j]; 
+                    libint2::Shell third=obs3[k];
+                    libint2::Shell fourth=obs4[l];
+                    engine.compute(first ,second,third,fourth); // here need change 
+                    auto ints_shellset=buf[0]; // location of the computed integrals
+                    if (ints_shellset==nullptr)
+                        continue; // nullprt retured if the entaire shell-set was screened out
+                    // transfer into eigen buf
+                    int n1=first.size();
+                    int n2=second.size();
+                    int n3=third.size();
+                    int n4=fourth.size();
+                     // here need change .
+                    // check block index using shell2bf
+                    int bind1=shell2bf1[i];
+                    int bind2=shell2bf2[j];
+                    int bind3=shell2bf3[k];
+                    int bind4=shell2bf4[l];
+                    // write to full tensor 
+                    // this is not the most efficient way to write such a product,
+                    // but is the only way possible with the current feature set
+                    for (auto f1=0;f1!=n1;++f1){
+                        for (auto f2=0; f2!=n2;++f2){
+                            for(auto f3=0; f3!=n3;++f3){
+                                for(auto f4=0;f4!=n4;++f4){
+                                
+                                //cout<<"  "<<bind1+f1<<" " <<bind2+f2<<" " <<bind3+f3 <<" "<<bind4+f4<<" "<<setprecision(15)<< ints_shellset[f1*(n2*n3*n4)+f2*(n3*n4)+f3*(n4)+f4]<<endl;
+                                        // print out results
+                                result(bind1+f1,bind2+f2,bind3+f3,bind4+f4)=ints_shellset[f1*(n2*n3*n4)+f2*(n3*n4)+f3*(n4)+f4];
+                                }
+                            }
+
+                        }
+                    }
+                    
+
+                }
+            }
+        }
+    }  
+    return   result;
+};
