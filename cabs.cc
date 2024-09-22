@@ -114,7 +114,17 @@ int main(int argc, char* argv[]){
     std::cout<<(idendity-S_cabs_cabs).norm()<<std::endl;
     //test orthogonal of cabs and ao
     std::cout<< (S_obs_union*Coeff_ao_cabs).norm()<<std::endl;
+    const static Eigen::IOFormat CSVFormat(Eigen::FullPrecision, Eigen::DontAlignCols, ", ", "\n");
+    ofstream file("C_ao_cabs.csv");
+        if (file.is_open())
+        {
+            file << Coeff_ao_cabs.format(CSVFormat);
+            file.close();
+        }   
+    return 0;
 }
+ 
+
 Matrix ao_overlap(libint2::BasisSet obs,libint2::BasisSet abs){
     int n_obs=obs.nbf();
     int n_abs=abs.nbf();
