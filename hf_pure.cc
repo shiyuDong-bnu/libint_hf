@@ -290,6 +290,16 @@ int main(int argc, char* argv[]){
         std::cout<<"energy is "<<std::setprecision(15)<<energy<<"\t";
         delta=std::abs(energy-old_energy);
         std::cout <<"delta is "<<delta<<std::endl;
+        if (delta<1e-9){
+            // save mo coeff
+        const static Eigen::IOFormat CSVFormat(Eigen::FullPrecision, Eigen::DontAlignCols, ", ", "\n");
+        ofstream file("C_mo.csv");
+        if (file.is_open())
+        {
+            file << Coeff.format(CSVFormat);
+            file.close();
+        }   
+        }
     }while(delta>1e-9);
     return 0;
 }
