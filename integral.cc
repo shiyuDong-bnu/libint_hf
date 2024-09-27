@@ -518,6 +518,7 @@ int main(int argc, char* argv[]){
     // save eri to npy file
     xt::dump_npy("hyb_stg_tensor.npy",hyb_stg_tensor);
     xt::dump_npy("hyb_stg_tensorf.npy",stg_integral(obs,obs,obs,cabs,gamma));
+    xt::dump_npy("hyb_square_stg_tensorf.npy",stg_integral(obs,obs,obs,cabs,2.0*gamma));
 
 
 
@@ -579,6 +580,7 @@ int main(int argc, char* argv[]){
     // save eri to npy file
     xt::dump_npy("stg_tensor.npy",stg_tensor);
     xt::dump_npy("stg_tensorf.npy",stg_integral(obs,obs,obs,obs,gamma));
+    xt::dump_npy("stg_square_tensorf.npy",stg_integral(obs,obs,obs,obs,2.0*gamma));
     return 0;
 }
 Matrix S_integral(
