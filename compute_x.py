@@ -20,5 +20,6 @@ f_pqij=stg_tensor[:,:,:n_occ,:n_occ]
 f_klpq=stg_tensor[:n_occ,:n_occ,:,:]
 temp=np.einsum("pqij,klpq->ijkl",f_pqij,f_klpq)
 X-=temp
+np.save("X.npy",X)
 
 
