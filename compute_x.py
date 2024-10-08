@@ -4,11 +4,15 @@ X is
 """
 n_obs=23
 n_occ=5
+gamma=1.5
 import numpy as np
 import pandas as pd
 square=np.load("stg_square_tensorf.npy")
+square/=(gamma)**2
 hyb_stg=np.load("hyb_stg_tensorf.npy")
+hyb_stg/=gamma
 stg_tensor=np.load("stg_tensorf.npy")
+stg_tensor/=gamma
 stg_ao_tensor=np.concatenate((stg_tensor,hyb_stg),axis=-1)
 ##
 C_mo=pd.read_csv("C_mo.csv",header=None).to_numpy()
