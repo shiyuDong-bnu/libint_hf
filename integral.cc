@@ -69,6 +69,7 @@ XTMatrix two_body(
     libint2::BasisSet obs4,
     libint2::Engine engine
 );
+void Save_Eigen_Matrix(std::string fname,Matrix matrix);
 int main(int argc, char* argv[]){
     libint2::initialize();
     // reading input molecule
@@ -101,10 +102,10 @@ int main(int argc, char* argv[]){
     //std::cout<<"max l is "<<max_l<<endl;
     //std::cout<<"max nprim is"<<max_nprim<<endl;
     int n_shell=obs.size();
-    //std::cout<<"The basis set has "<<n_shell<<" shells"<<endl;
+    std::cout<<"The basis set has "<<n_shell<<" shells"<<endl;
     for (int i=0;i<n_shell;++i){
         int n_basis=obs[i].size();
-        //std::cout<<"shell "<< i<<" has "<<n_basis<<" basis"<<endl;
+        std::cout<<"shell "<< i<<" has "<<n_basis<<" basis"<<endl;
     }
     // initial s engine
     libint2::Engine s_engine(libint2::Operator::overlap,
@@ -117,13 +118,13 @@ int main(int argc, char* argv[]){
     // get the address of result beforehand
     const auto& buf = s_engine.results();
     s_engine.compute(first ,second);
-    //std::cout<<"S compute Done"<<endl;
+    // std::cout<<"S compute Done"<<endl;
     // need to get the results. 
     // let us read it first to get a sence of buf
     int n1=first.size();
     int n2=second.size();
-    //std::cout <<"First shell have "<<n1<<" contr basis"<<endl;
-    //std::cout <<"Second shell have "<<n2<<" contr basis"<<endl;
+    // std::cout <<"First shell have "<<n1<<" contr basis"<<endl;
+    // std::cout <<"Second shell have "<<n2<<" contr basis"<<endl;
     // for general we can also get the same result in shell to basis function?
     //std::cout<<"shell2bf type is vector ->"<<typeid(shell2bf).name()<<endl;
     n1=shell2bf[3];
@@ -212,8 +213,9 @@ int main(int argc, char* argv[]){
 	{
 		file2 << T.format(CSVFormat);
 		file2.close();
-	}   
-
+	}
+    Matrix T_obs_cabs=T_integral1(obs,cabs);
+    Save_Eigen_Matrix("T_obs_cabs.csv",T_obs_cabs);
     // calculate V_nuc 
     // step1 iniitalize engine
     libint2::Engine v_engine(libint2::Operator::nuclear	,  // will compute overlap ints
@@ -264,6 +266,8 @@ int main(int argc, char* argv[]){
 		file3 << V.format(CSVFormat);
 		file3.close();
 	} 
+    Matrix V_obs_cabs=V_integral1(obs,cabs,atoms);
+    Save_Eigen_Matrix("V_obs_cabs.csv",V_obs_cabs);
     // eri integral
     // initialize engine
     libint2::Engine eri_engine(libint2::Operator::coulomb	,  // will compute overlap ints
@@ -458,6 +462,7 @@ int main(int argc, char* argv[]){
     // save eri to npy file
     xt::dump_npy("hyb_eri_tensor.npy",hyb_eri_tensor);
     xt::dump_npy("hyb_eri_tensorf.npy",eri_integral(obs,obs,obs,cabs));
+    xt::dump_npy("cooc_eri_tensorf.npy",eri_integral(cabs,obs,obs,cabs));
     // stg
     libint2::Engine hyb_std_engine(libint2::Operator::stg	,  // will compute overlap ints
         hybrid_max_nprim,    // max # of primitives in shells this engine will accept
@@ -908,3 +913,10 @@ XTMatrix two_body(
     }  
     return   result;
 };
+void Save_Eigen_Matrix(std::string fname,Matrix matrix){
+    std::ofstream myfile;
+    const static Eigen::IOFormat CSVFormat(Eigen::FullPrecision, Eigen::DontAlignCols, ", ", "\n");
+    myfile.open (fname);
+    myfile<<matrix.format(CSVFormat);
+    myfile.close();
+}
