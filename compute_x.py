@@ -20,6 +20,10 @@ stg_ao_tensor=np.concatenate((stg_tensor,hyb_stg),axis=-1)
 ##
 C_mo=pd.read_csv("C_mo.csv",header=None).to_numpy()
 C_ao_cabs=pd.read_csv("C_ao_cabs.csv",header=None).to_numpy()
+# change from chemist's notation to physicst's notation
+square=np.einsum("ijkl->ikjl",square)
+stg_tensor=np.einsum("ijkl->ikjl",stg_tensor)
+stg_ao_tensor=np.einsum("ijkl->ikjl",stg_ao_tensor)
 ## need to change from ao to mo.
 square_mo=np.einsum("ijkl,iI,jJ,kK,lL->IJKL",square,C_mo,C_mo,C_mo,C_mo,optimize=True)
 stg_mo=np.einsum("ijkl,iI,jJ,kK,lL->IJKL",stg_tensor,C_mo,C_mo,C_mo,C_mo,optimize=True)
